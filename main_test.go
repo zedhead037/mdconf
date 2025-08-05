@@ -5,6 +5,31 @@ import (
 	"testing"
 )
 
+func TestParserPrinterSanityCheck(t *testing.T) {
+	r := ParseString(`
++ key1: value1
++ key2: value2
+
+# subsection1
++ key1.1: value1.1
++ key1.2: value1.2
+
+## subsection1.1
++ key1.1.1: value1.1.1
+
+# subsection2
+//empty section
+# subsection3
++ key3.1: value3.1
+`)
+	r1 := r.ToString()
+	r2 := ParseString(r1)
+	r3 := r2.ToString()
+	if r1 != r3 {
+		t.Error("ToString() should produce the same result on this one")
+	}
+}
+
 func TestRootKVOnly(t *testing.T) {
 	r := ParseString(`
 + key1: value1
@@ -191,14 +216,45 @@ func TestRootSubsection(t *testing.T) {
 		if v != "value3.1" { t.Error("subsection3:key3.1 should return value3.1") }
 	})
 	t.Run("query section", func(t *testing.T) {
-		_, err := r.QuerySection([]string{"subsection1"})
+		v, err := r.QuerySection([]string{"subsection1"})
 		if err != nil { t.Error("querying subsection1 shouldn't report error") }
-		_, err = r.QuerySection([]string{"subsection1", "subsection1.1"})
+		if v.Level != 1 { t.Error("subsection1 should be level 1") }
+		if v.SectionName != "subsection1" { t.Error("querying for subsection1 should give subsection1") }
+		v, err = r.QuerySection([]string{"subsection1", "subsection1.1"})
 		if err != nil { t.Error("querying subsection1:subsection1.1 shouldn't report error") }
-		_, err = r.QuerySection([]string{"subsection2"})
+		if v.Level != 2 { t.Error("subsection1:subsection1.1 should be level 2") }
+		if v.SectionName != "subsection1.1" { t.Error("querying for subsection1:subsection1.1 should give subsection1.1") }
+		v, err = r.QuerySection([]string{"subsection2"})
 		if err != nil { t.Error("querying subsection2 shouldn't report error") }
-		_, err = r.QuerySection([]string{"subsection3"})
+		if v.Level != 1 { t.Error("subsection2 should be level 1") }
+		if v.SectionName != "subsection2" { t.Error("querying for subsection2 should give subsection2") }
+		v, err = r.QuerySection([]string{"subsection3"})
 		if err != nil { t.Error("querying subsection3 shouldn't report error") }
+		if v.Level != 1 { t.Error("subsection3 should be level 1") }
+		if v.SectionName != "subsection3" { t.Error("querying for subsection3 should give subsection3") }
 		
 	})
 }
+
+func TestSetKeyAddSection(t *testing.T) {
+	r := ParseString("")
+	r.SetKey([]string{"first-key"}, "first-value")
+	r.SetKey([]string{"second-key"}, "second-value")
+	v, err := r.QueryKey([]string{"first-key"})
+	if err != nil { t.Error("shouldn't produce error here") }
+	if v != "first-value" { t.Error("should produce \"first-value\" here") }
+	v, err = r.QueryKey([]string{"second-key"})
+	if err != nil { t.Error("shouldn't produce error here") }
+	if v != "second-value" { t.Error("should produce \"second-value\" here") }
+	r.AddSection([]string{}, "first-section")
+	s, err := r.QuerySection([]string{"first-section"})
+	if err != nil { t.Error("shouldn't produce error here") }
+	if s == nil { t.Error("shouldn't produce error here") }
+	if s.Level != 1 { t.Error("should produce level 1 section here") }
+	if s.SectionName != "first-section" { t.Error("the name should be \"first-section\" here") }
+	s.SetKey([]string{"third-key"}, "third-value")
+	v, err = r.QueryKey([]string{"first-section", "third-key"})
+	if err != nil { t.Error("shouldn't produce error here") }
+	if v != "third-value" { t.Error("should be \"third-value\" here") }
+}
+

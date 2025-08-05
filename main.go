@@ -235,7 +235,7 @@ func (mdc *MDConfSection) QuerySection(k []string) (*MDConfSection, error) {
 	i := 0
 	subj := mdc
 	if len(k) <= 0 { return mdc, nil }
-	for i < len(k) - 1 {
+	for i < len(k) {
 		if subj.Subsection == nil { return nil, ErrNotFound }
 		found := false
 		for _, subsec := range subj.Subsection {
@@ -249,4 +249,56 @@ func (mdc *MDConfSection) QuerySection(k []string) (*MDConfSection, error) {
 	}
 	return subj, nil
 }
+
+func (mdc *MDConfSection) SetKey(k []string, val string) error {
+	i := 0
+	subj := mdc
+	if len(k) <= 0 { return ErrEmptyKey }
+	for i < len(k) - 1 {
+		if subj.Subsection == nil { return ErrNotFound }
+		found := false
+		for _, subsec := range subj.Subsection {
+			if subsec.SectionName != k[i] { continue }
+			found = true
+			subj = subsec
+			break
+		}
+		if !found { return ErrNotFound }
+		i += 1
+	}
+	if subj.ValueMap == nil {
+		subj.ValueMap = make(map[string]string, 0)
+	}
+	subj.ValueMap[k[len(k)-1]] = val
+	return nil
+}
+
+func (mdc *MDConfSection) AddSection(k []string, name string) (*MDConfSection, error) {
+	i := 0
+	subj := mdc
+	for i < len(k) {
+		if subj.Subsection == nil { return nil, ErrNotFound }
+		found := false
+		for _, subsec := range subj.Subsection {
+			if subsec.SectionName != k[i] { continue }
+			found = true
+			subj = subsec
+			break
+		}
+		if !found { return nil, ErrNotFound }
+		i += 1
+	}
+	if subj.Subsection == nil {
+		subj.Subsection = make([]*MDConfSection, 0)
+	}
+	res := &MDConfSection{
+		Level: subj.Level + 1,
+		SectionName: name,
+		ValueMap: nil,
+		Subsection: nil,
+	}
+	subj.Subsection = append(subj.Subsection, res)
+	return res, nil
+}
+
 
