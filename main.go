@@ -3,6 +3,7 @@ package mdconf
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -145,4 +146,107 @@ func Parse(r io.Reader) *MDConfSection {
 	return parseInner(result, tlr)
 }
 
+func escapeValue(s string) string {
+	if len(s) >= 2 {
+		if isWhite(s[0]) {
+			if isWhite(s[len(s)-1]) {
+				return "\\" + s[:len(s)-1] + "\\" + s[len(s)-1:]
+			} else {
+				return "\\" + s
+			}
+		} else if isWhite(s[len(s)-1]) {
+			return s[:len(s)-1] + "\\" + s[len(s)-1:]
+		} else {
+			return s
+		}
+	} else if len(s) == 1 {
+		if isWhite(s[0]) {
+			return "\\" + s
+		} else {
+			return s
+		}
+	} else { return "" }
+}
+
+func toString(br *strings.Builder, mdc *MDConfSection) {
+	br.WriteString(fmt.Sprintf("%s %s\n", strings.Repeat("#", int(mdc.Level)), mdc.SectionName))
+	if mdc.ValueMap != nil {
+		for k, v := range mdc.ValueMap {
+			ss := strings.Split(v, "\n")
+			if len(ss) > 1 {
+				br.WriteString(fmt.Sprintf("+ %s: %s\\", k, escapeValue(ss[0])))
+				i := 1
+				for i < len(ss)-1 {
+					br.WriteString(ss[i])
+					br.WriteString("\\\n")
+				}
+				br.WriteString(ss[len(ss)-1])
+				br.WriteString("\n")
+			} else {
+				br.WriteString(fmt.Sprintf("+ %s: %s\n", k, escapeValue(v)))
+			}
+		}
+		br.WriteString("\n")
+	}
+	if mdc.Subsection != nil {
+		for _, k := range mdc.Subsection {
+			toString(br, k)
+			br.WriteString("\n")
+		}
+	}
+}
+func (mdc *MDConfSection) ToString() string {
+	res := new(strings.Builder)
+	toString(res, mdc)
+	return res.String()
+}
+
+func ParseString(s string) *MDConfSection {
+	nr := strings.NewReader(s)
+	return Parse(nr)
+}
+
+var ErrNotFound = errors.New("key not found")
+var ErrEmptyKey = errors.New("key is empty")
+
+func (mdc *MDConfSection) QueryKey(k []string) (string, error) {
+	i := 0
+	subj := mdc
+	if len(k) <= 0 { return "", ErrEmptyKey }
+	for i < len(k) - 1 {
+		if subj.Subsection == nil { return "", ErrNotFound }
+		found := false
+		for _, subsec := range subj.Subsection {
+			if subsec.SectionName != k[i] { continue }
+			found = true
+			subj = subsec
+			break
+		}
+		if !found { return "", ErrNotFound }
+		i += 1
+	}
+	if subj.ValueMap == nil { return "", ErrNotFound }
+	v, ok := subj.ValueMap[k[i]]
+	if !ok { return "", ErrNotFound }
+	return v, nil
+}
+
+func (mdc *MDConfSection) QuerySection(k []string) (*MDConfSection, error) {
+	i := 0
+	subj := mdc
+	if len(k) <= 0 { return mdc, nil }
+	for i < len(k) - 1 {
+		if subj.Subsection == nil { return nil, ErrNotFound }
+		found := false
+		for _, subsec := range subj.Subsection {
+			if subsec.SectionName != k[i] { continue }
+			found = true
+			subj = subsec
+			break
+		}
+		if !found { return nil, ErrNotFound }
+		i += 1
+	}
+	return subj, nil
+}
 

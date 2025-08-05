@@ -6,6 +6,14 @@ license: public domain
 config file format in markdown syntax.  it's like ini but it's
 markdown.
 
+installation
+-----------------
+
+```
+go get github.com/zedhead037/mdconf
+```
+
+test: `git clone`, and then `go test -v`.
 
 syntax
 ----------
