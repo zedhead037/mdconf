@@ -85,7 +85,9 @@ func parseInner(currentSection *MDConfSection, br *trueLineReader) *MDConfSectio
 			}
 			key := matchres[1]
 			val := matchres[2]
-			if val[len(val)-1] == '\\' {
+			if len(val) <= 0 {
+				currentSection.ValueMap[key] = ""
+			} else if val[len(val)-1] == '\\' {
 				currentMultiLineKey = key
 				currentMultiLineValueLineStack = make([]string, 0)
 				currentMultiLineValueLineStack = append(currentMultiLineValueLineStack, unescape(val[:len(val)-1]))
@@ -208,8 +210,18 @@ func ParseString(s string) *MDConfSection {
 
 var ErrNotFound = errors.New("key not found")
 var ErrEmptyKey = errors.New("key is empty")
+var ErrEmptySubject = errors.New("subject is empty")
+
+func (mdc *MDConfSection) LocalQueryKey(k string) (string, error) {
+	if mdc == nil { return "", ErrNotFound }
+	if mdc.ValueMap == nil { return "", ErrNotFound }
+	v, ok := mdc.ValueMap[k]
+	if !ok { return "", ErrNotFound }
+	return v, nil
+}
 
 func (mdc *MDConfSection) QueryKey(k []string) (string, error) {
+	if mdc == nil { return "", ErrNotFound }
 	i := 0
 	subj := mdc
 	if len(k) <= 0 { return "", ErrEmptyKey }
@@ -231,7 +243,17 @@ func (mdc *MDConfSection) QueryKey(k []string) (string, error) {
 	return v, nil
 }
 
+func (mdc *MDConfSection) LocalQuerySection(k string) (*MDConfSection, error) {
+	if mdc == nil { return nil, ErrNotFound }
+	if mdc.Subsection == nil { return nil, ErrNotFound }
+	for _, subsec := range mdc.Subsection {
+		if subsec.SectionName == k { return subsec, nil }
+	}
+	return nil, ErrNotFound
+}
+
 func (mdc *MDConfSection) QuerySection(k []string) (*MDConfSection, error) {
+	if mdc == nil { return nil, ErrNotFound }
 	i := 0
 	subj := mdc
 	if len(k) <= 0 { return mdc, nil }
@@ -251,6 +273,7 @@ func (mdc *MDConfSection) QuerySection(k []string) (*MDConfSection, error) {
 }
 
 func (mdc *MDConfSection) SetKey(k []string, val string) error {
+	if mdc == nil { return ErrEmptySubject }
 	i := 0
 	subj := mdc
 	if len(k) <= 0 { return ErrEmptyKey }
@@ -273,7 +296,21 @@ func (mdc *MDConfSection) SetKey(k []string, val string) error {
 	return nil
 }
 
+func (mdc *MDConfSection) LocalSetKey(k string, val string) error {
+	if mdc == nil { return ErrEmptySubject }
+	if mdc.ValueMap == nil {
+		mdc.ValueMap = make(map[string]string, 0)
+	}
+	mdc.ValueMap[k] = val
+	return nil
+}
+
 func (mdc *MDConfSection) AddSection(k []string, name string) (*MDConfSection, error) {
+	// Add a new subsection at location specified by the key `k`.  The
+	// section name should be not used by other subsections.  If
+	// subsections with the same name exists, this function would
+	// simply return that subsection and not do anything.
+	if mdc == nil { return nil, ErrEmptySubject }
 	i := 0
 	subj := mdc
 	for i < len(k) {
@@ -288,16 +325,28 @@ func (mdc *MDConfSection) AddSection(k []string, name string) (*MDConfSection, e
 		if !found { return nil, ErrNotFound }
 		i += 1
 	}
-	if subj.Subsection == nil {
-		subj.Subsection = make([]*MDConfSection, 0)
+	return subj.LocalAddSection(name)
+}
+
+func (mdc *MDConfSection) LocalAddSection(name string) (*MDConfSection, error) {
+	// Add a new subsection directly at the current section.  The
+	// section name should be not used by other subsections.  If
+	// subsections with the same name exists, this function would
+	// simply return that subsection and not do anything.
+	if mdc == nil { return nil, ErrEmptySubject }
+	if mdc.Subsection == nil {
+		mdc.Subsection = make([]*MDConfSection, 0)
+	}
+	for _, v := range mdc.Subsection {
+		if v.SectionName == name { return v, nil }
 	}
 	res := &MDConfSection{
-		Level: subj.Level + 1,
+		Level: mdc.Level + 1,
 		SectionName: name,
 		ValueMap: nil,
 		Subsection: nil,
 	}
-	subj.Subsection = append(subj.Subsection, res)
+	mdc.Subsection = append(mdc.Subsection, res)
 	return res, nil
 }
 

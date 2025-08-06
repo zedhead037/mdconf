@@ -15,18 +15,19 @@ func TestParserPrinterSanityCheck(t *testing.T) {
 + key1.2: value1.2
 
 ## subsection1.1
-+ key1.1.1: value1.1.1
++ key1.1.1: 
 
 # subsection2
 //empty section
 # subsection3
-+ key3.1: value3.1
++ key3.1:
++ : dsdf
 `)
 	r1 := r.ToString()
 	r2 := ParseString(r1)
 	r3 := r2.ToString()
 	if r1 != r3 {
-		t.Error("ToString() should produce the same result on this one")
+		t.Error("ToString() should be able to handle empty key/value and reproduce the same result on this one")
 	}
 }
 
